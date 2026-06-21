@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Featured Projects 3D Scroll</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden; /* 禁用原生滚动条，使用自定义JS滚动 */
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 布局框架 */
+        .container {
+            position: relative;
+            width: 100%;
+            max-width: 1400px;
+            height: 100vh;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 50px;
+        }
+
+        .side-text {
+            font-size: 1.2rem;
+            font-weight: 400;
+            letter-spacing: 0.05em;
+            color: #ffffff;
+            user-select: none;
+        }
+
+        /* 核心滚动视口 */
+        .scroll-viewport {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 600px;
+            /* 激活3D空间 */
+            perspective: 1200px; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 卡片容器 */
+        .card-list {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            will-change: transform;
+        }
+
+        /* 单个卡片 */
+        .card-item {
+            position: absolute;
+            width: 100%;
+            height: 450px; /* 基准高度 */
+            left: 0;
+            top: calc(50% - 225px); /* 默认居中堆叠 */
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            transform-style: preserve-3d;
+            will-change: transform, opacity;
+            transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+        }
+
+        .card-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="side-text">大学生的</div>
+        
+        <div class="scroll-viewport">
+            <div class="card-list" id="cardList">
+                <div class="card-item"><img src="images/photo1.jpg" alt="项目1"></div>
+                <div class="card-item"><img src="images/photo2.jpg" alt="项目2"></div>
+                <div class="card-item"><img src="images/photo6.jpg" alt="项目3"></div>
+                <div class="card-item"><img src="images/photo7.jpg" alt="项目4"></div>
+                <div class="card-item"><img src="images/photo8.jpg" alt="项目5"></div>
+                <div class="card-item"><img src="images/photo9.jpg" alt="项目6"></div>
+            </div>
+        </div>
+
+        <div class="side-text">哑光时刻</div>
+    </div>
+
+    <script>
+        const cardList = document.getElementById('cardList');
+        const cards = Array.from(document.querySelectorAll('.card-item'));
+        
+        let scrollOffset = 0;      // 当前滚动总位移
+        let targetOffset = 0;      // 目标滚动位移（阻尼动画用）
+        const cardSpacing = 280;   // 卡片之间的基础上下间距（决定紧凑度）
+        
+        // 核心更新函数：计算每张卡片由于滚动产生的位置、缩放、透明度和3D纵深
+        function updateCards() {
+            // 平滑阻尼过渡 (Lerp)
+            scrollOffset += (targetOffset - scrollOffset) * 0.1;
+
+            cards.forEach((card, index) => {
+                // 计算当前卡片相对于屏幕中心点的相对位置
+                // index * cardSpacing 是原本应该在的位置，加上 scrollOffset 产生移动
+                const cardOffset = (index * cardSpacing) + scrollOffset;
+                
+                // 将位移转化为弧度或比例，用于计算非线性的3D形变
+                // 核心：cardOffset 为 0 代表正好在正中央
+                const distanceFromCenter = cardOffset; 
+                
+                // 1. 计算 Y 轴偏移：通过 Math.sin 或直接线性偏移，视频中更接近带有轻微3D弧度的线性
+                const translateY = distanceFromCenter;
+
+                // 2. 计算 Z 轴深度：离中心越远，Z轴越往后退 (小于0)
+                const translateZ = -Math.abs(distanceFromCenter) * 0.5;
+
+                // 3. 计算缩放 scale：越往两边越小
+                // 基础大小 1.0，每离开中心 1000px 缩小 0.4 
+                const scale = Math.max(0.4, 1 - Math.abs(distanceFromCenter) / 900);
+
+                // 4. 计算旋转角度 (X轴旋转)：让上下两端产生向后倾斜的轮盘感
+                const rotateX = -distanceFromCenter * 0.05;
+
+                // 5. 计算透明度 opacity：中央最亮，两端淡出
+                const opacity = Math.max(0, 1 - Math.abs(distanceFromCenter) / 700);
+
+                // 6. 层级 zIndex：离中央越近，层级越高，确保不会产生错误的遮挡
+                const zIndex = Math.round(1000 - Math.abs(distanceFromCenter));
+
+                // 应用样式
+                card.style.transform = `translateY(${translateY}px) translateZ(${translateZ}px) scale(${scale}) rotateX(${rotateX}deg)`;
+                card.style.opacity = opacity;
+                card.style.zIndex = zIndex;
+            });
+
+            // 循环调用，维持丝滑惯性
+            requestAnimationFrame(updateCards);
+        }
+
+        // 监听鼠标滚轮事件
+        window.addEventListener('wheel', (e) => {
+            // e.deltaY 正数向下滚，负数向上滚
+            // 修改这里的系数（如 1.5）可以调整滚动灵敏度
+            targetOffset -= e.deltaY * 1.2;
+
+            // 边界限制（防止无限往上或往下滑出屏幕）
+            const maxScroll = 0;
+            const minScroll = -(cards.length - 1) * cardSpacing;
+            
+            if (targetOffset > maxScroll) targetOffset = maxScroll;
+            if (targetOffset < minScroll) targetOffset = minScroll;
+        });
+
+        // 初始化动画循环
+        updateCards();
+    </script>
+</body>
+</html>
